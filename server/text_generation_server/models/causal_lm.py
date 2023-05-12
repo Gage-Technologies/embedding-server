@@ -65,6 +65,7 @@ class CausalLMBatch(Batch):
         cls,
         pb: generate_pb2.Batch,
         tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
         device: torch.device,
     ) -> "CausalLMBatch":
         inputs = []
