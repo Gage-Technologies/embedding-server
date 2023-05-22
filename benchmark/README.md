@@ -20,11 +20,11 @@ make install-benchmark
 First, start `text-generation-inference`:
 
 ```shell
-text-generation-launcher --model-id bigscience/bloom-560m
+text-generation-launcher --model-id all-MiniLM-L6-v2
 ```
 
 Then run the benchmarking tool:
 
 ```shell
-text-generation-benchmark --tokenizer-name bigscience/bloom-560m
+text-generation-benchmark --tokenizer-name all-MiniLM-L6-v2
 ```

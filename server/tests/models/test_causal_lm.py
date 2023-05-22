@@ -4,8 +4,8 @@ import torch
 from copy import copy
 from transformers import AutoTokenizer
 
-from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLM, CausalLMBatch
+from embedding_server.pb import generate_pb2
+from embedding_server.models.causal_lm import CausalLM, EncoderBatch
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +38,7 @@ def default_pb_batch(default_pb_request):
 
 @pytest.fixture
 def default_causal_lm_batch(default_pb_batch, gpt2_tokenizer):
-    return CausalLMBatch.from_pb(default_pb_batch, gpt2_tokenizer, torch.device("cpu"))
+    return EncoderBatch.from_pb(default_pb_batch, gpt2_tokenizer, torch.device("cpu"))
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def default_multi_requests_causal_lm_batch(default_pb_request, gpt2_tokenizer):
     req_1.stopping_parameters.max_new_tokens = 5
 
     batch_pb = generate_pb2.Batch(id=1, requests=[req_0, req_1], size=2)
-    return CausalLMBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
+    return EncoderBatch.from_pb(batch_pb, gpt2_tokenizer, torch.device("cpu"))
 
 
 def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
@@ -85,11 +85,11 @@ def test_batch_from_pb(default_pb_batch, default_causal_lm_batch):
 
 def test_batch_concatenate_no_prefill(default_causal_lm_batch):
     with pytest.raises(ValueError):
-        CausalLMBatch.concatenate([default_causal_lm_batch, default_causal_lm_batch])
+        EncoderBatch.concatenate([default_causal_lm_batch, default_causal_lm_batch])
 
 
 def test_causal_lm_batch_type(default_causal_lm):
-    assert default_causal_lm.batch_type == CausalLMBatch
+    assert default_causal_lm.batch_type == EncoderBatch
 
 
 def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
@@ -97,7 +97,7 @@ def test_causal_lm_generate_token(default_causal_lm, default_causal_lm_batch):
     generations, next_batch = default_causal_lm.generate_token(default_causal_lm_batch)
 
     assert len(generations) == len(next_batch)
-    assert isinstance(next_batch, CausalLMBatch)
+    assert isinstance(next_batch, EncoderBatch)
 
     assert len(next_batch.all_input_ids) == len(next_batch)
     assert len(next_batch.all_input_ids[0]) == sequence_length + 1
@@ -220,7 +220,7 @@ def test_batch_concatenate(
         (k.clone(), v.clone()) for (k, v) in next_batch_1.past_key_values
     ]
 
-    next_batch = CausalLMBatch.concatenate([next_batch_0, next_batch_1])
+    next_batch = EncoderBatch.concatenate([next_batch_0, next_batch_1])
 
     assert torch.equal(next_batch.all_input_ids[0], next_batch_0.all_input_ids[0])
     assert torch.equal(next_batch.all_input_ids[1], next_batch_1.all_input_ids[0])

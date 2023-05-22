@@ -1,7 +1,7 @@
 /// Inspired by https://github.com/hatoo/oha/blob/bb989ea3cd77727e7743e7daa60a19894bb5e901/src/monitor.rs
-use crate::generation::{Decode, Message, Prefill};
+use crate::embedder::{Message, Embed};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use text_generation_client::ClientError;
+use embedding_server_client::ClientError;
 use tokio::sync::mpsc;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction, Layout};
@@ -25,7 +25,6 @@ pub(crate) struct App {
     data: Data,
     tokenizer_name: String,
     sequence_length: u32,
-    decode_length: u32,
     n_run: usize,
     batch_size: Vec<u32>,
     receiver: mpsc::Receiver<Result<Message, ClientError>>,
@@ -36,7 +35,6 @@ impl App {
         receiver: mpsc::Receiver<Result<Message, ClientError>>,
         tokenizer_name: String,
         sequence_length: u32,
-        decode_length: u32,
         n_run: usize,
         batch_size: Vec<u32>,
     ) -> Self {
@@ -60,7 +58,6 @@ impl App {
             data,
             tokenizer_name,
             sequence_length,
-            decode_length,
             n_run,
             batch_size,
             receiver,
@@ -128,8 +125,7 @@ impl App {
         while let Ok(message) = self.receiver.try_recv() {
             match message {
                 Ok(message) => match message {
-                    Message::Prefill(step) => self.data.push_prefill(step, self.current_batch),
-                    Message::Decode(step) => self.data.push_decode(step, self.current_batch),
+                    Message::Embed(step) => self.data.push_embed(step, self.current_batch),
                     Message::EndRun => {
                         self.completed_runs[self.current_batch] += 1;
                     }
@@ -186,43 +182,31 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints(
                 [
-                    Constraint::Percentage(25),
-                    Constraint::Percentage(25),
-                    Constraint::Percentage(25),
-                    Constraint::Percentage(25),
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
                 ]
                 .as_ref(),
             )
             .split(row5[3]);
 
         // Left mid row vertical layout
-        let prefill_text = Layout::default()
+        let embed_text = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
             .split(mid[0]);
 
-        // Right mid row vertical layout
-        let decode_text = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(8), Constraint::Length(5)].as_ref())
-            .split(mid[2]);
-        let decode_text_latency = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-            .split(decode_text[0]);
-
         // Bottom row horizontal layout
         let bottom = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .constraints([Constraint::Percentage(100)].as_ref())
             .split(row5[4]);
 
         // Title
         let title = Block::default()
             .borders(Borders::NONE)
             .title(format!(
-                "Model: {} | Sequence Length: {} | Decode Length: {}",
-                self.tokenizer_name, self.sequence_length, self.decode_length
+                "Model: {} | Sequence Length: {}",
+                self.tokenizer_name, self.sequence_length
             ))
             .style(
                 Style::default()
@@ -292,18 +276,18 @@ impl App {
         );
         f.render_widget(run_gauge, top[1]);
 
-        // Prefill text infos
-        let prefill_latency_block = latency_paragraph(
-            &mut self.data.prefill_latencies[self.current_tab],
-            "Prefill",
+        // Embed text infos
+        let embed_latency_block = latency_paragraph(
+            &mut self.data.embed_latencies[self.current_tab],
+            "Embed",
         );
-        let prefill_throughput_block =
-            throughput_paragraph(&self.data.prefill_throughputs[self.current_tab], "Prefill");
+        let embed_throughput_block =
+            throughput_paragraph(&self.data.embed_throughputs[self.current_tab], "Embed");
 
-        f.render_widget(prefill_latency_block, prefill_text[0]);
-        f.render_widget(prefill_throughput_block, prefill_text[1]);
+        f.render_widget(embed_latency_block, embed_text[0]);
+        f.render_widget(embed_throughput_block, embed_text[1]);
 
-        // Prefill latency histogram
+        // Embed latency histogram
         let histo_width = 7;
         let bins = if mid[1].width < 2 {
             0
@@ -313,119 +297,58 @@ impl App {
         .max(2);
 
         let histo_data =
-            latency_histogram_data(&self.data.prefill_latencies[self.current_tab], bins);
+            latency_histogram_data(&self.data.embed_latencies[self.current_tab], bins);
         let histo_data_str: Vec<(&str, u64)> =
             histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
-        let prefill_histogram =
-            latency_histogram(&histo_data_str, "Prefill").bar_width(histo_width as u16);
-        f.render_widget(prefill_histogram, mid[1]);
+        let embed_histogram =
+            latency_histogram(&histo_data_str, "Embed").bar_width(histo_width as u16);
+        f.render_widget(embed_histogram, mid[1]);
 
-        // Decode text info
-        let decode_latency_block = latency_paragraph(
-            &mut self.data.decode_latencies[self.current_tab],
-            "Decode Total",
-        );
-        let decode_token_latency_block = latency_paragraph(
-            &mut self.data.decode_token_latencies[self.current_tab],
-            "Decode Token",
-        );
-        let decode_throughput_block =
-            throughput_paragraph(&self.data.decode_throughputs[self.current_tab], "Decode");
-        f.render_widget(decode_latency_block, decode_text_latency[0]);
-        f.render_widget(decode_token_latency_block, decode_text_latency[1]);
-        f.render_widget(decode_throughput_block, decode_text[1]);
-
-        // Decode latency histogram
-        let histo_data =
-            latency_histogram_data(&self.data.decode_latencies[self.current_tab], bins);
-        let histo_data_str: Vec<(&str, u64)> =
-            histo_data.iter().map(|(l, v)| (l.as_str(), *v)).collect();
-        let decode_histogram =
-            latency_histogram(&histo_data_str, "Decode").bar_width(histo_width as u16);
-        f.render_widget(decode_histogram, mid[3]);
-
-        // Prefill latency/throughput chart
-        let prefill_latency_throughput_chart = latency_throughput_chart(
-            &self.data.prefill_batch_latency_throughput,
+        // Embed latency/throughput chart
+        let embed_latency_throughput_chart = latency_throughput_chart(
+            &self.data.embed_batch_latency_throughput,
             &self.batch_size,
             self.zoom,
-            "Prefill",
+            "Embed",
         );
-        f.render_widget(prefill_latency_throughput_chart, bottom[0]);
-
-        // Decode latency/throughput chart
-        let decode_latency_throughput_chart = latency_throughput_chart(
-            &self.data.decode_batch_latency_throughput,
-            &self.batch_size,
-            self.zoom,
-            "Decode",
-        );
-        f.render_widget(decode_latency_throughput_chart, bottom[1]);
+        f.render_widget(embed_latency_throughput_chart, bottom[0]);
     }
 }
 
 /// App internal data struct
 struct Data {
-    prefill_latencies: Vec<Vec<f64>>,
-    prefill_throughputs: Vec<Vec<f64>>,
-    decode_latencies: Vec<Vec<f64>>,
-    decode_token_latencies: Vec<Vec<f64>>,
-    decode_throughputs: Vec<Vec<f64>>,
-    prefill_batch_latency_throughput: Vec<(f64, f64)>,
-    decode_batch_latency_throughput: Vec<(f64, f64)>,
+    embed_latencies: Vec<Vec<f64>>,
+    embed_throughputs: Vec<Vec<f64>>,
+    embed_batch_latency_throughput: Vec<(f64, f64)>,
 }
 
 impl Data {
     fn new(n_run: usize, n_batch: usize) -> Self {
-        let prefill_latencies: Vec<Vec<f64>> =
+        let embed_latencies: Vec<Vec<f64>> =
             (0..n_batch).map(|_| Vec::with_capacity(n_run)).collect();
-        let prefill_throughputs: Vec<Vec<f64>> = prefill_latencies.clone();
+        let embed_throughputs: Vec<Vec<f64>> = embed_latencies.clone();
 
-        let decode_latencies: Vec<Vec<f64>> = prefill_latencies.clone();
-        let decode_token_latencies: Vec<Vec<f64>> = decode_latencies.clone();
-        let decode_throughputs: Vec<Vec<f64>> = prefill_throughputs.clone();
-
-        let prefill_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
-        let decode_batch_latency_throughput: Vec<(f64, f64)> =
-            prefill_batch_latency_throughput.clone();
+        let embed_batch_latency_throughput: Vec<(f64, f64)> = Vec::with_capacity(n_batch);
 
         Self {
-            prefill_latencies,
-            prefill_throughputs,
-            decode_latencies,
-            decode_token_latencies,
-            decode_throughputs,
-            prefill_batch_latency_throughput,
-            decode_batch_latency_throughput,
+            embed_latencies,
+            embed_throughputs,
+            embed_batch_latency_throughput,
         }
     }
 
-    fn push_prefill(&mut self, prefill: Prefill, batch_idx: usize) {
-        let latency = prefill.latency.as_millis() as f64;
-        self.prefill_latencies[batch_idx].push(latency);
-        self.prefill_throughputs[batch_idx].push(prefill.throughput);
-    }
-
-    fn push_decode(&mut self, decode: Decode, batch_idx: usize) {
-        let latency = decode.latency.as_millis() as f64;
-        let token_latency = decode.token_latency.as_millis() as f64;
-        self.decode_latencies[batch_idx].push(latency);
-        self.decode_token_latencies[batch_idx].push(token_latency);
-        self.decode_throughputs[batch_idx].push(decode.throughput);
+    fn push_embed(&mut self, embed: Embed, batch_idx: usize) {
+        let latency = embed.latency.as_millis() as f64;
+        self.embed_latencies[batch_idx].push(latency);
+        self.embed_throughputs[batch_idx].push(embed.throughput);
     }
 
     fn end_batch(&mut self, batch_idx: usize) {
-        self.prefill_batch_latency_throughput.push((
-            self.prefill_latencies[batch_idx].iter().sum::<f64>()
-                / self.prefill_latencies[batch_idx].len() as f64,
-            self.prefill_throughputs[batch_idx].iter().sum::<f64>()
-                / self.prefill_throughputs[batch_idx].len() as f64,
-        ));
-        self.decode_batch_latency_throughput.push((
-            self.decode_latencies[batch_idx].iter().sum::<f64>()
-                / self.decode_latencies[batch_idx].len() as f64,
-            self.decode_throughputs[batch_idx].iter().sum::<f64>()
-                / self.decode_throughputs[batch_idx].len() as f64,
+        self.embed_batch_latency_throughput.push((
+            self.embed_latencies[batch_idx].iter().sum::<f64>()
+                / self.embed_latencies[batch_idx].len() as f64,
+            self.embed_throughputs[batch_idx].iter().sum::<f64>()
+                / self.embed_throughputs[batch_idx].len() as f64,
         ));
     }
 }

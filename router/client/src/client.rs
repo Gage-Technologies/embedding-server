@@ -1,6 +1,6 @@
 /// Single shard Client
-use crate::pb::generate::v1::text_generation_service_client::TextGenerationServiceClient;
-use crate::pb::generate::v1::*;
+use crate::pb::embedding::v1::embedding_service_client::EmbeddingServiceClient;
+use crate::pb::embedding::v1::*;
 use crate::Result;
 use grpc_metadata::InjectTelemetryContext;
 use tonic::transport::{Channel, Uri};
@@ -9,7 +9,7 @@ use tracing::instrument;
 /// Text Generation Inference gRPC client
 #[derive(Debug, Clone)]
 pub struct Client {
-    stub: TextGenerationServiceClient<Channel>,
+    stub: EmbeddingServiceClient<Channel>,
 }
 
 impl Client {
@@ -18,7 +18,7 @@ impl Client {
         let channel = Channel::builder(uri).connect().await?;
 
         Ok(Self {
-            stub: TextGenerationServiceClient::new(channel),
+            stub: EmbeddingServiceClient::new(channel),
         })
     }
 
@@ -32,7 +32,7 @@ impl Client {
             .await?;
 
         Ok(Self {
-            stub: TextGenerationServiceClient::new(channel),
+            stub: EmbeddingServiceClient::new(channel),
         })
     }
 
@@ -78,44 +78,14 @@ impl Client {
         Ok(())
     }
 
-    /// Filter a cached batch
-    #[instrument(skip(self))]
-    pub async fn filter_batch(
-        &mut self,
-        batch_id: u64,
-        keep_requests: Vec<Request>,
-    ) -> Result<Option<Batch>> {
-        let request = tonic::Request::new(FilterBatchRequest {
-            batch_id,
-            keep_requests,
-        })
-        .inject_context();
-        let filtered_batch = self.stub.filter_batch(request).await?.into_inner();
-        Ok(filtered_batch.batch)
-    }
-
     /// Generate one token for each request in the given batch
     ///
     /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
-    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
-        let response = self.stub.prefill(request).await?.into_inner();
-        Ok((response.generations, response.batch))
-    }
-
-    /// Generate one token for each request in the given cached batches
-    ///
-    /// Returns Generation for each request in batches
-    /// and the next cached batch
-    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
-    pub async fn decode(
-        &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
-        let response = self.stub.decode(request).await?.into_inner();
-        Ok((response.generations, response.batch))
+    pub async fn embed(&mut self, batch: Batch) -> Result<Vec<Execution>> {
+        let request = tonic::Request::new(EmbedRequest { batch: Some(batch) }).inject_context();
+        let response = self.stub.embed(request).await?.into_inner();
+        Ok(response.embeddings)
     }
 }

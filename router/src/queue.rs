@@ -1,9 +1,8 @@
-use crate::infer::InferError;
-use crate::infer::InferStreamResponse;
-use crate::validation::ValidGenerateRequest;
+use crate::infer::{InferError, InferResponse};
+use crate::validation::ValidEmbedRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::collections::VecDeque;
-use text_generation_client::{Batch, Request};
+use embedding_server_client::{Batch, Request};
 use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -12,9 +11,9 @@ use tracing::{info_span, instrument, Span};
 #[derive(Debug)]
 pub(crate) struct Entry {
     /// Request
-    pub request: ValidGenerateRequest,
+    pub request: ValidEmbedRequest,
     /// Response sender to communicate between the Infer struct and the batching_task
-    pub response_tx: flume::Sender<Result<InferStreamResponse, InferError>>,
+    pub response_tx: flume::Sender<Result<InferResponse, InferError>>,
     /// Span that will live as long as entry
     pub span: Span,
     /// Temporary span used as a guard when logging inference, wait times...
@@ -33,12 +32,12 @@ pub(crate) struct Queue {
 }
 
 impl Queue {
-    pub(crate) fn new(requires_padding: bool) -> Self {
+    pub(crate) fn new() -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = flume::unbounded();
 
         // Launch background queue task
-        tokio::spawn(queue_task(requires_padding, queue_receiver));
+        tokio::spawn(queue_task(queue_receiver));
 
         Self { queue_sender }
     }
@@ -79,8 +78,8 @@ impl Queue {
 }
 
 // Background task responsible of the queue state
-async fn queue_task(requires_padding: bool, receiver: flume::Receiver<QueueCommand>) {
-    let mut state = State::new(requires_padding);
+async fn queue_task(receiver: flume::Receiver<QueueCommand>) {
+    let mut state = State::new();
 
     while let Ok(cmd) = receiver.recv_async().await {
         match cmd {
@@ -113,18 +112,14 @@ struct State {
 
     /// Id of the next batch
     next_batch_id: u64,
-
-    /// Whether the model is using padding
-    requires_padding: bool,
 }
 
 impl State {
-    fn new(requires_padding: bool) -> Self {
+    fn new() -> Self {
         Self {
             entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
-            requires_padding,
         }
     }
 
@@ -160,10 +155,6 @@ impl State {
         let mut batch_entries =
             IntMap::with_capacity_and_hasher(self.entries.len(), BuildNoHashHasher::default());
 
-        let mut max_input_length = 0;
-        let mut prefill_tokens: u32 = 0;
-        let mut decode_tokens: u32 = 0;
-
         // Pop entries starting from the front of the queue
         while let Some((id, mut entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
@@ -171,24 +162,6 @@ impl State {
             if entry.response_tx.is_disconnected() {
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 continue;
-            }
-
-            if self.requires_padding {
-                // We pad to max input length in the Python shards
-                // We need to take these padding tokens into the equation
-                max_input_length = max_input_length.max(entry.request.input_length);
-                prefill_tokens = (batch_requests.len() + 1) as u32 * max_input_length
-            } else {
-                prefill_tokens += entry.request.input_length;
-            }
-
-            decode_tokens += entry.request.stopping_parameters.max_new_tokens;
-
-            if (prefill_tokens + decode_tokens) > token_budget {
-                // Entry is over budget
-                // Add it back to the front
-                self.entries.push_front((id, entry));
-                break;
             }
 
             // Create a new span to link the batch back to this entry
@@ -202,9 +175,7 @@ impl State {
             batch_requests.push(Request {
                 id,
                 inputs: entry.request.inputs.clone(),
-                truncate: entry.request.truncate,
-                parameters: Some(entry.request.parameters.clone()),
-                stopping_parameters: Some(entry.request.stopping_parameters.clone()),
+                truncate: 0,
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
@@ -240,7 +211,6 @@ impl State {
             id: self.next_batch_id,
             requests: batch_requests,
             size,
-            max_tokens: (prefill_tokens + decode_tokens),
         };
         // Increment batch id
         self.next_batch_id += 1;
@@ -267,35 +237,18 @@ enum QueueCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use text_generation_client::{NextTokenChooserParameters, StoppingCriteriaParameters};
     use tracing::info_span;
 
     fn default_entry() -> (
         Entry,
-        flume::Receiver<Result<InferStreamResponse, InferError>>,
+        flume::Receiver<Result<InferResponse, InferError>>,
     ) {
         let (response_tx, receiver_tx) = flume::unbounded();
 
         let entry = Entry {
-            request: ValidGenerateRequest {
+            request: ValidEmbedRequest {
                 inputs: "".to_string(),
                 input_length: 0,
-                truncate: 0,
-                parameters: NextTokenChooserParameters {
-                    temperature: 0.0,
-                    top_k: 0,
-                    top_p: 0.0,
-                    typical_p: 0.0,
-                    do_sample: false,
-                    seed: 0,
-                    repetition_penalty: 0.0,
-                    watermark: false,
-                },
-                stopping_parameters: StoppingCriteriaParameters {
-                    ignore_eos_token: false,
-                    max_new_tokens: 1,
-                    stop_sequences: vec![],
-                },
             },
             response_tx,
             span: info_span!("entry"),
@@ -308,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_append() {
-        let mut state = State::new(false);
+        let mut state = State::new();
         let (entry, _guard) = default_entry();
 
         assert_eq!(state.next_id, 0);
@@ -324,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_next_batch_empty() {
-        let mut state = State::new(false);
+        let mut state = State::new();
 
         assert!(state.next_batch(None, 1).is_none());
         assert!(state.next_batch(Some(1), 1).is_none());
@@ -332,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_next_batch_min_size() {
-        let mut state = State::new(false);
+        let mut state = State::new();
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -364,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_next_batch_token_budget() {
-        let mut state = State::new(false);
+        let mut state = State::new();
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -397,14 +350,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_append() {
-        let queue = Queue::new(false);
+        let queue = Queue::new();
         let (entry, _guard) = default_entry();
         queue.append(entry);
     }
 
     #[tokio::test]
     async fn test_queue_next_batch_empty() {
-        let queue = Queue::new(false);
+        let queue = Queue::new();
 
         assert!(queue.next_batch(None, 1).await.is_none());
         assert!(queue.next_batch(Some(1), 1).await.is_none());
@@ -412,7 +365,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
-        let queue = Queue::new(false);
+        let queue = Queue::new();
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -445,7 +398,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_budget() {
-        let queue = Queue::new(false);
+        let queue = Queue::new();
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -470,7 +423,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_dropped_receiver() {
-        let queue = Queue::new(false);
+        let queue = Queue::new();
         let (entry, _) = default_entry();
         queue.append(entry);
 

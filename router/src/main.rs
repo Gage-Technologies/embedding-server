@@ -10,8 +10,8 @@ use opentelemetry_otlp::WithExportConfig;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::time::Duration;
-use text_generation_client::ShardedClient;
-use text_generation_router::{server, HubModelInfo};
+use embedding_server_client::ShardedClient;
+use embedding_server_router::{server, HubModelInfo};
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
@@ -24,25 +24,15 @@ use tracing_subscriber::{EnvFilter, Layer};
 struct Args {
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
-    #[clap(default_value = "2", long, env)]
-    max_best_of: usize,
-    #[clap(default_value = "4", long, env)]
-    max_stop_sequences: usize,
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
-    #[clap(default_value = "1512", long, env)]
-    max_total_tokens: usize,
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
+    #[clap(default_value = "32768", long, short, env)]
+    max_batch_total_tokens: u32,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
-    #[clap(default_value = "32000", long, env)]
-    max_batch_total_tokens: u32,
-    #[clap(default_value = "20", long, env)]
-    max_waiting_tokens: usize,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
+    #[clap(default_value = "/tmp/embedding-server-0", long, env)]
     master_shard_uds_path: String,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
@@ -64,14 +54,9 @@ fn main() -> Result<(), std::io::Error> {
     // Pattern match configuration
     let Args {
         max_concurrent_requests,
-        max_best_of,
-        max_stop_sequences,
         max_input_length,
-        max_total_tokens,
-        max_batch_size,
+        max_batch_total_tokens,
         waiting_served_ratio,
-        mut max_batch_total_tokens,
-        max_waiting_tokens,
         port,
         master_shard_uds_path,
         tokenizer_name,
@@ -125,12 +110,6 @@ fn main() -> Result<(), std::io::Error> {
         .unwrap()
         .block_on(async {
             init_logging(otlp_endpoint, json_output);
-
-            if let Some(max_batch_size) = max_batch_size {
-                tracing::warn!("`max-batch-size` is deprecated. Use `max-batch-total-tokens` instead");
-                max_batch_total_tokens = (max_batch_size * max_total_tokens) as u32;
-                tracing::warn!("Overriding `max-batch-total-tokens` value with `max-batch-size` * `max-total-tokens` = {max_batch_total_tokens}");
-            }
 
             if tokenizer.is_none() {
                 tracing::warn!(
@@ -186,13 +165,9 @@ fn main() -> Result<(), std::io::Error> {
                 shard_info,
                 compat_return_full_text,
                 max_concurrent_requests,
-                max_best_of,
-                max_stop_sequences,
                 max_input_length,
-                max_total_tokens,
                 waiting_served_ratio,
                 max_batch_total_tokens,
-                max_waiting_tokens,
                 sharded_client,
                 tokenizer,
                 validation_workers,
@@ -237,7 +212,7 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
                 trace::config()
                     .with_resource(Resource::new(vec![KeyValue::new(
                         "service.name",
-                        "text-generation-inference.router",
+                        "embedding-server.router",
                     )]))
                     .with_sampler(Sampler::AlwaysOn),
             )

@@ -77,7 +77,7 @@ or
 The easiest way of getting started is using the official Docker container:
 
 ```shell
-model=bigscience/bloom-560m
+model=all-MiniLM-L6-v2
 num_shard=2
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 

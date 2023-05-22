@@ -6,11 +6,10 @@ mod pb;
 mod sharded_client;
 
 pub use client::Client;
-pub use pb::generate::v1::HealthResponse;
-pub use pb::generate::v1::InfoResponse as ShardInfo;
-pub use pb::generate::v1::{
-    Batch, FinishReason, GeneratedText, Generation, NextTokenChooserParameters, PrefillTokens,
-    Request, StoppingCriteriaParameters,
+pub use pb::embedding::v1::HealthResponse;
+pub use pb::embedding::v1::InfoResponse as ShardInfo;
+pub use pb::embedding::v1::{
+    Batch, Embedding, Execution, Request
 };
 pub use sharded_client::ShardedClient;
 use thiserror::Error;
@@ -22,14 +21,14 @@ pub enum ClientError {
     #[error("Could not connect to Text Generation server: {0}")]
     Connection(String),
     #[error("Server error: {0}")]
-    Generation(String),
+    Server(String),
     #[error("Sharded results are empty")]
     EmptyResults,
 }
 
 impl From<Status> for ClientError {
     fn from(err: Status) -> Self {
-        let err = Self::Generation(err.message().to_string());
+        let err = Self::Server(err.message().to_string());
         tracing::error!("{err}");
         err
     }

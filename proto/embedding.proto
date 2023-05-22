@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package embedding.v1;
+
+service EmbeddingService {
+    /// Model Info
+    rpc Info (InfoRequest) returns (InfoResponse) {}
+    /// Service discovery
+    rpc ServiceDiscovery (ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse) {}
+    /// Empties batch cache
+    rpc ClearCache (ClearCacheRequest) returns (ClearCacheResponse);
+    /// Perform embedding on a batch of requests
+    rpc Embed (EmbedRequest) returns (EmbedResponse);
+    /// Health check
+    rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+message HealthRequest {}
+message HealthResponse {}
+
+/// Empty request
+message InfoRequest {}
+
+message InfoResponse {
+    bool requires_padding = 1;
+    string dtype = 2;
+    string device_type = 3;
+}
+
+/// Empty request
+message ServiceDiscoveryRequest {}
+
+message ServiceDiscoveryResponse {
+    /// Other shards urls
+    repeated string urls = 1;
+}
+
+message ClearCacheRequest {
+    /// Optional batch id
+    optional uint64 id = 1;
+}
+
+/// Empty response
+message ClearCacheResponse {}
+
+message Request {
+    /// Request ID
+    uint64 id = 1;
+    /// The content to be embedded
+    string inputs = 2;
+    /// Content truncation
+    uint32 truncate = 3;
+}
+
+message Batch {
+    /// Batch ID
+    uint64 id = 1;
+    /// Individual requests
+    repeated Request requests = 2;
+    /// Batch size (==len(requests))
+    uint32 size = 3;
+}
+
+message Embedding {
+    /// Output
+    repeated float embedding = 1;
+    /// Dimension
+    uint32 dim = 2;
+}
+
+message Execution {
+    /// Request ID
+    uint64 request_id = 1;
+    /// Complete generated text
+    Embedding embedding = 2;
+}
+
+message EmbedRequest {
+    /// Batch
+    Batch batch = 1;
+}
+
+message EmbedResponse {
+    /// Generation
+    repeated Execution embeddings = 1;
+}

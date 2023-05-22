@@ -4,9 +4,9 @@ import torch
 from copy import copy
 from transformers import AutoTokenizer
 
-from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch
-from text_generation_server.models.bloom import BloomCausalLMBatch, BLOOM
+from embedding_server.pb import generate_pb2
+from embedding_server.models.causal_lm import EncoderBatch
+from embedding_server.models.bloom import BloomCausalLMBatch, BLOOM
 
 
 @pytest.fixture(scope="session")
@@ -100,7 +100,7 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     generations, next_batch = default_bloom.generate_token(default_bloom_batch)
 
     assert len(generations) == len(default_bloom_batch)
-    assert isinstance(next_batch, CausalLMBatch)
+    assert isinstance(next_batch, EncoderBatch)
     assert not next_batch.keys_head_dim_last
 
     assert len(next_batch.all_input_ids) == len(next_batch)
