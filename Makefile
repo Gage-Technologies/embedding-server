@@ -52,3 +52,7 @@ run-bloom:
 
 run-bloom-quantize:
 	embedding-server-launcher --model-id bigscience/bloom --num-shard 8 --quantize --port 8080
+
+push-oss:
+	git checkout oss
+	git push upstream oss:main
