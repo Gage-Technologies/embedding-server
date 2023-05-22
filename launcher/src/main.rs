@@ -84,17 +84,6 @@ struct Args {
     #[clap(default_value = "1000", long, env)]
     max_input_length: usize,
 
-    /// This is the most important value to set as it defines the "memory budget"
-    /// of running clients requests.
-    /// Clients will send input sequences and ask to generate `max_new_tokens`
-    /// on top. with a value of `1512` users can send either a prompt of
-    /// `1000` and ask for `512` new tokens, or send a prompt of `1` and ask for
-    /// `1511` max_new_tokens.
-    /// The larger this value, the larger amount each request will be in your RAM
-    /// and the less effective batching can be.
-    #[clap(default_value = "1512", long, env)]
-    max_total_tokens: usize,
-
     /// This represents the ratio of waiting queries vs running queries where
     /// you want to start considering pausing the running queries to include the waiting
     /// ones into the same batch.
@@ -735,8 +724,6 @@ fn spawn_webserver(
         args.max_concurrent_requests.to_string(),
         "--max-input-length".to_string(),
         args.max_input_length.to_string(),
-        "--max-total-tokens".to_string(),
-        args.max_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
         "--port".to_string(),
@@ -856,11 +843,12 @@ fn main() -> Result<(), LauncherError> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    // auto_convert is only needed for sharded models as we do not require safetensors in
-    // single shard mode
-    let auto_convert = num_shard > 1;
-    // Download and convert model weights
-    download_convert_model(&args, auto_convert, running.clone())?;
+    // TODO: implement the pre-download of the model and validate the use of safetensors
+    // // auto_convert is only needed for sharded models as we do not require safetensors in
+    // // single shard mode
+    // let auto_convert = num_shard > 1;
+    // // Download and convert model weights
+    // download_convert_model(&args, auto_convert, running.clone())?;
 
     // Shared shutdown bool
     let shutdown = Arc::new(Mutex::new(false));

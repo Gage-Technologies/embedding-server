@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "embedding-server-server"
+name = "embedding-server"
 version = "0.6.0"
-description = "Text Generation Inference Python gRPC Server"
-authors = ["Olivier Dehaene <olivier@huggingface.co>"]
+description = "Embedding Server Python gRPC Server"
+authors = ["Sam Ulrich <samson98ulrich@gmail.com>"]
 
 [tool.poetry.scripts]
-embedding-server-server = 'text_generation_server.cli:app'
+embedding-server = 'embedding_server.cli:app'
 
 [tool.poetry.dependencies]
 python = "^3.9"

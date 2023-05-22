@@ -97,16 +97,6 @@ COPY server/Makefile-flash-att Makefile
 # Build specific version of flash attention
 RUN make build-flash-attention
 
-# Build Transformers CUDA kernels
-FROM kernel-builder as transformers-builder
-
-WORKDIR /usr/src
-
-COPY server/Makefile-transformers Makefile
-
-# Build specific version of transformers
-RUN BUILD_EXTENSIONS="True" make build-transformers
-
 # Text Generation Inference base image
 FROM nvidia/cuda:11.8.0-base-ubuntu20.04 as base
 
@@ -134,13 +124,6 @@ COPY --from=pytorch-install /opt/conda /opt/conda
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
-
-# Copy build artifacts from transformers builder
-COPY --from=transformers-builder /usr/src/transformers /usr/src/transformers
-COPY --from=transformers-builder /usr/src/transformers/build/lib.linux-x86_64-cpython-39/transformers /usr/src/transformers/src/transformers
-
-# Install transformers dependencies
-RUN cd /usr/src/transformers && pip install -e . --no-cache-dir && pip install einops --no-cache-dir
 
 # Install server
 COPY proto proto

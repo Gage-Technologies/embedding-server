@@ -52,7 +52,7 @@ def serve(
     logger.add(
         sys.stdout,
         format="{message}",
-        filter="text_generation_server",
+        filter="embedding_server",
         level=logger_level,
         serialize=json_output,
         backtrace=True,
@@ -86,7 +86,7 @@ def download_weights(
     logger.add(
         sys.stdout,
         format="{message}",
-        filter="text_generation_server",
+        filter="embedding_server",
         level=logger_level,
         serialize=json_output,
         backtrace=True,
