@@ -649,6 +649,73 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
 
 [[package]]
+name = "embedding-server-benchmark"
+version = "0.7.0-dev"
+dependencies = [
+ "average",
+ "clap",
+ "crossterm",
+ "embedding-server-client",
+ "float-ord",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokenizers",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "embedding-server-client"
+version = "0.7.0-dev"
+dependencies = [
+ "futures",
+ "grpc-metadata",
+ "prost",
+ "prost-build",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tower",
+ "tracing",
+]
+
+[[package]]
+name = "embedding-server-router"
+version = "0.7.0-dev"
+dependencies = [
+ "async-stream",
+ "axum",
+ "axum-tracing-opentelemetry",
+ "clap",
+ "embedding-server-client",
+ "flume",
+ "futures",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "nohash-hasher",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokenizers",
+ "tokio",
+ "tower-http 0.4.0",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "utoipa",
+ "utoipa-swagger-ui",
+ "vergen",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2515,41 +2582,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "text-generation-benchmark"
-version = "0.7.0-dev"
-dependencies = [
- "average",
- "clap",
- "crossterm",
- "float-ord",
- "ratatui",
- "serde",
- "serde_json",
- "text-generation-client",
- "thiserror",
- "tokenizers",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "text-generation-client"
-version = "0.7.0-dev"
-dependencies = [
- "futures",
- "grpc-metadata",
- "prost",
- "prost-build",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tower",
- "tracing",
-]
-
-[[package]]
 name = "text-generation-launcher"
 version = "0.7.0-dev"
 dependencies = [
@@ -2562,38 +2594,6 @@ dependencies = [
  "subprocess",
  "tracing",
  "tracing-subscriber",
- "vergen",
-]
-
-[[package]]
-name = "text-generation-router"
-version = "0.7.0-dev"
-dependencies = [
- "async-stream",
- "axum",
- "axum-tracing-opentelemetry",
- "clap",
- "flume",
- "futures",
- "metrics",
- "metrics-exporter-prometheus",
- "nohash-hasher",
- "opentelemetry",
- "opentelemetry-otlp",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "text-generation-client",
- "thiserror",
- "tokenizers",
- "tokio",
- "tower-http 0.4.0",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "utoipa",
- "utoipa-swagger-ui",
  "vergen",
 ]
 

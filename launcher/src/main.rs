@@ -45,7 +45,7 @@ struct Args {
     /// `gpt2` or `OpenAssistant/oasst-sft-1-pythia-12b`.
     /// Or it can be a local directory containing the necessary files
     /// as saved by `save_pretrained(...)` methods of transformers
-    #[clap(default_value = "bigscience/bloom-560m", long, env)]
+    #[clap(default_value = "all-MiniLM-L6-v2", long, env)]
     model_id: String,
 
     /// The actual revision of the model if you're referring to a model
@@ -77,20 +77,6 @@ struct Args {
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
 
-    /// This is the maximum allowed value for clients to set `best_of`.
-    /// Best of makes `n` generations at the same time, and return the best
-    /// in terms of overall log probability over the entire generated sequence
-    #[clap(default_value = "2", long, env)]
-    max_best_of: usize,
-
-    /// This is the maximum allowed value for clients to set `stop_sequences`.
-    /// Stop sequences are used to allow the model to stop on more than just
-    /// the EOS token, and enable more complex "prompting" where users can preprompt
-    /// the model in a specific way and define their "own" stop token aligned with
-    /// their prompt.
-    #[clap(default_value = "4", long, env)]
-    max_stop_sequences: usize,
-
     /// This is the maximum allowed input length (expressed in number of tokens)
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
@@ -108,12 +94,6 @@ struct Args {
     /// and the less effective batching can be.
     #[clap(default_value = "1512", long, env)]
     max_total_tokens: usize,
-
-    /// The maximum allowed batch size during dynamic batching.
-    /// Using `max_batch_total_tokens` should be favored in general
-    /// as it's a finer way to control RAM usage.
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
 
     /// This represents the ratio of waiting queries vs running queries where
     /// you want to start considering pausing the running queries to include the waiting
@@ -155,28 +135,8 @@ struct Args {
     #[clap(default_value = "32000", long, env)]
     max_batch_total_tokens: u32,
 
-    /// This setting defines how many tokens can be passed before forcing the waiting
-    /// queries to be put on the batch (if the size of the batch allows for it).
-    /// New queries require 1 `prefill` forward, which is different from `decode`
-    /// and therefore you need to pause the running batch in order to run `prefill`
-    /// to create the correct values for the waiting queries to be able to join the batch.
-    ///
-    /// With a value too small, queries will always "steal" the compute to run `prefill`
-    /// and running queries will be delayed by a lot.
-    ///
-    /// With a value too big, waiting queries could wait for a very long time
-    /// before being allowed a slot in the running batch. If your server is busy
-    /// that means that requests that could run in ~2s on an empty server could
-    /// end up running in ~20s because the query had to wait for 18s.
-    ///
-    /// This number is expressed in number of tokens to make it a bit more
-    /// "model" agnostic, but what should really matter is the overall latency
-    /// for end users.
-    #[clap(default_value = "20", long, env)]
-    max_waiting_tokens: usize,
-    #[clap(default_value = "3000", long, short, env)]
-
     /// The port to listen on.
+    #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
     /// The name of the socket for gRPC communication between the webserver
@@ -770,21 +730,15 @@ fn spawn_webserver(
     // Start webserver
     tracing::info!("Starting Webserver");
     let mut argv = vec![
-        "text-generation-router".to_string(),
+        "embedding-server-router".to_string(),
         "--max-concurrent-requests".to_string(),
         args.max_concurrent_requests.to_string(),
-        "--max-best-of".to_string(),
-        args.max_best_of.to_string(),
-        "--max-stop-sequences".to_string(),
-        args.max_stop_sequences.to_string(),
         "--max-input-length".to_string(),
         args.max_input_length.to_string(),
         "--max-total-tokens".to_string(),
         args.max_total_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
         args.waiting_served_ratio.to_string(),
-        "--max-waiting-tokens".to_string(),
-        args.max_waiting_tokens.to_string(),
         "--port".to_string(),
         args.port.to_string(),
         "--master-shard-uds-path".to_string(),
@@ -794,13 +748,8 @@ fn spawn_webserver(
     ];
 
     // Deprecate max_batch_size
-    if let Some(max_batch_size) = args.max_batch_size {
-        argv.push("--max-batch-size".to_string());
-        argv.push(max_batch_size.to_string())
-    } else {
-        argv.push("--max-batch-total-tokens".to_string());
-        argv.push(args.max_batch_total_tokens.to_string())
-    }
+    argv.push("--max-batch-total-tokens".to_string());
+    argv.push(args.max_batch_total_tokens.to_string());
 
     // Model optional revision
     if let Some(ref revision) = args.revision {
@@ -848,7 +797,7 @@ fn spawn_webserver(
             tracing::error!("Failed to start webserver: {}", err);
             if let PopenError::IoError(err) = err {
                 if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-router not found in PATH");
+                    tracing::error!("embedding-server-router not found in PATH");
                     tracing::error!("Please install it with `make install-router`")
                 }
             } else {

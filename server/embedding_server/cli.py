@@ -1,5 +1,7 @@
 import os
 import sys
+import warnings
+
 import typer
 
 from pathlib import Path
@@ -22,11 +24,15 @@ def serve(
     revision: Optional[str] = None,
     sharded: bool = False,
     quantize: Optional[Quantization] = None,
-    uds_path: Path = "/tmp/text-generation-server",
+    uds_path: Path = "/tmp/embedding-server",
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
 ):
+    if sharded:
+        warnings.warn("Sharded mode is not supported yet")
+        sharded = False
+
     if sharded:
         assert (
             os.getenv("RANK", None) is not None
@@ -54,8 +60,8 @@ def serve(
     )
 
     # Import here after the logger is added to log potential import exceptions
-    from text_generation_server import server
-    from text_generation_server.tracing import setup_tracing
+    from embedding_server import server
+    from embedding_server.tracing import setup_tracing
 
     # Setup OpenTelemetry distributed tracing
     if otlp_endpoint is not None:
@@ -88,7 +94,7 @@ def download_weights(
     )
 
     # Import here after the logger is added to log potential import exceptions
-    from text_generation_server import utils
+    from embedding_server import utils
 
     # Test if files were already download
     try:

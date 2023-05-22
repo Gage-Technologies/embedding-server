@@ -1,8 +1,8 @@
 import pytest
 
-from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch
-from text_generation_server.models.santacoder import SantaCoder
+from embedding_server.pb import generate_pb2
+from embedding_server.models.causal_lm import EncoderBatch
+from embedding_server.models.santacoder import SantaCoder
 
 
 @pytest.fixture(scope="session")
@@ -44,7 +44,7 @@ def default_fim_pb_batch(default_fim_pb_request):
 
 @pytest.mark.skip
 def test_santacoder_generate_token_completion(default_santacoder, default_pb_batch):
-    batch = CausalLMBatch.from_pb(
+    batch = EncoderBatch.from_pb(
         default_pb_batch, default_santacoder.tokenizer, default_santacoder.device
     )
     next_batch = batch
@@ -69,7 +69,7 @@ def test_santacoder_generate_token_completion(default_santacoder, default_pb_bat
 def test_fim_santacoder_generate_token_completion(
     default_santacoder, default_fim_pb_batch
 ):
-    batch = CausalLMBatch.from_pb(
+    batch = EncoderBatch.from_pb(
         default_fim_pb_batch, default_santacoder.tokenizer, default_santacoder.device
     )
     next_batch = batch

@@ -1,10 +1,10 @@
-from text_generation_server.utils.hub import (
+from embedding_server.utils.hub import (
     download_weights,
     weight_hub_files,
     weight_files,
 )
 
-from text_generation_server.utils.convert import convert_files
+from embedding_server.utils.convert import convert_files
 
 
 def test_convert_files():

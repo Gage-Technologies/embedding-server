@@ -39,10 +39,10 @@ python-client-tests:
 python-tests: python-server-tests python-client-tests
 
 run-bloom-560m:
-	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2 --port 8080
+	text-generation-launcher --model-id all-MiniLM-L6-v2 --num-shard 2 --port 8080
 
 run-bloom-560m-quantize:
-	text-generation-launcher --model-id bigscience/bloom-560m --num-shard 2 --quantize --port 8080
+	text-generation-launcher --model-id all-MiniLM-L6-v2 --num-shard 2 --quantize --port 8080
 
 download-bloom:
 	HF_HUB_ENABLE_HF_TRANSFER=1 text-generation-server download-weights bigscience/bloom

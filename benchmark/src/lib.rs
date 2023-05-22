@@ -1,13 +1,13 @@
 mod app;
 mod event;
-mod generation;
+mod embedder;
 mod utils;
 
 use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
 use std::io;
-use text_generation_client::ShardedClient;
+use embedding_server_client::ShardedClient;
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
 use tui::backend::CrosstermBackend;
@@ -20,7 +20,6 @@ pub async fn run(
     tokenizer: Tokenizer,
     batch_size: Vec<u32>,
     sequence_length: u32,
-    decode_length: u32,
     n_runs: usize,
     warmups: usize,
     client: ShardedClient,
@@ -46,11 +45,10 @@ pub async fn run(
     let (shutdown_guard_sender, mut shutdown_guard_receiver) = mpsc::channel(1);
 
     // Create generation task
-    tokio::spawn(generation::generation_task(
+    tokio::spawn(embedder::embed_task(
         tokenizer,
         batch_size.clone(),
         sequence_length,
-        decode_length,
         n_runs,
         warmups,
         client,
@@ -75,7 +73,6 @@ pub async fn run(
         run_receiver,
         tokenizer_name,
         sequence_length,
-        decode_length,
         n_runs,
         batch_size,
     );

@@ -9,21 +9,21 @@ from grpc_reflection.v1alpha import reflection
 from pathlib import Path
 from typing import List, Optional
 
-from text_generation_server.cache import Cache
-from text_generation_server.interceptor import ExceptionInterceptor
-from text_generation_server.models import Model, get_model
-from text_generation_server.pb import generate_pb2_grpc, generate_pb2
-from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
+from embedding_server.cache import Cache
+from embedding_server.interceptor import ExceptionInterceptor
+from embedding_server.models import Model, get_model
+from embedding_server.pb import embedding_pb2_grpc, embedding_pb2
+from embedding_server.tracing import UDSOpenTelemetryAioServerInterceptor
 
 
-class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
+class EmbeddingService(embedding_pb2_grpc.EmbeddingServiceServicer):
     def __init__(self, model: Model, cache: Cache, server_urls: List[str]):
         self.cache = cache
         self.model = model
         self.server_urls = server_urls
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         if model.device.type == "cuda":
-            # Force inference mode for the lifetime of TextGenerationService
+            # Force inference mode for the lifetime of EmbeddingService
             self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
     async def Info(self, request, context):
@@ -32,10 +32,10 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def Health(self, request, context):
         if self.model.device.type == "cuda":
             torch.zeros((2, 2)).cuda()
-        return generate_pb2.HealthResponse()
+        return embedding_pb2.HealthResponse()
 
     async def ServiceDiscovery(self, request, context):
-        return generate_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
+        return embedding_pb2.ServiceDiscoveryResponse(urls=self.server_urls)
 
     async def ClearCache(self, request, context):
         if request.HasField("id"):
@@ -44,57 +44,18 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             self.cache.clear()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        return generate_pb2.ClearCacheResponse()
+        return embedding_pb2.ClearCacheResponse()
 
-    async def FilterBatch(self, request, context):
-        batch = self.cache.pop(request.batch_id)
-        if batch is None:
-            raise ValueError(f"Batch ID {request.batch_id} not found in cache.")
-        filtered_batch = batch.filter(request.keep_requests)
-        self.cache.set(filtered_batch)
-
-        return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
-
-    async def Prefill(self, request, context):
+    async def Embed(self, request, context):
         batch = self.model.batch_type.from_pb(
             request.batch, self.model.tokenizer, self.model.device
         )
 
-        generations, next_batch = self.model.generate_token(batch)
-        self.cache.set(next_batch)
+        executions = self.model.embed(batch)
 
-        return generate_pb2.PrefillResponse(
-            generations=[generation.to_pb() for generation in generations],
-            batch=next_batch.to_pb() if next_batch else None,
+        return embedding_pb2.EmbedResponse(
+            embeddings=[e.to_pb() for e in executions],
         )
-
-    async def Decode(self, request, context):
-        if len(request.batches) == 0:
-            raise ValueError("Must provide at least one batch")
-
-        batches = []
-        for batch_pb in request.batches:
-            batch = self.cache.pop(batch_pb.id)
-            if batch is None:
-                raise ValueError(f"Batch ID {batch_pb.id} not found in cache.")
-            batches.append(batch)
-
-        if len(batches) == 0:
-            raise ValueError("All batches are empty")
-
-        if len(batches) > 1:
-            batch = self.model.batch_type.concatenate(batches)
-        else:
-            batch = batches[0]
-
-        generations, next_batch = self.model.generate_token(batch)
-        self.cache.set(next_batch)
-
-        return generate_pb2.DecodeResponse(
-            generations=[generation.to_pb() for generation in generations],
-            batch=next_batch.to_pb() if next_batch else None,
-        )
-
 
 def serve(
     model_id: str,
@@ -132,11 +93,11 @@ def serve(
                 UDSOpenTelemetryAioServerInterceptor(),
             ]
         )
-        generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
-            TextGenerationService(model, Cache(), server_urls), server
+        embedding_pb2_grpc.add_EmbeddingServiceServicer_to_server(
+            EmbeddingService(model, Cache(), server_urls), server
         )
         SERVICE_NAMES = (
-            generate_pb2.DESCRIPTOR.services_by_name["TextGenerationService"].full_name,
+            embedding_pb2.DESCRIPTOR.services_by_name["EmbeddingService"].full_name,
             reflection.SERVICE_NAME,
         )
         reflection.enable_server_reflection(SERVICE_NAMES, server)

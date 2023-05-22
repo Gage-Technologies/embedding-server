@@ -1,5 +1,5 @@
 /// Multi shard Client
-use crate::{Batch, Client, Generation, HealthResponse, Request, ShardInfo};
+use crate::{Batch, Client, Execution, HealthResponse, ShardInfo};
 use crate::{ClientError, Result};
 use futures::future::join_all;
 use tonic::transport::Uri;
@@ -71,53 +71,18 @@ impl ShardedClient {
         join_all(futures).await.into_iter().collect()
     }
 
-    /// Filter a cached batch
-    #[instrument(skip(self))]
-    pub async fn filter_batch(
-        &mut self,
-        batch_id: u64,
-        keep_requests: Vec<Request>,
-    ) -> Result<Option<Batch>> {
-        let futures: Vec<_> = self
-            .clients
-            .iter_mut()
-            .map(|client| Box::pin(client.filter_batch(batch_id, keep_requests.clone())))
-            .collect();
-        // all shards return the same message
-        join_all(futures).await.pop().unwrap()
-    }
-
     /// Generate one token for each request in the given batch
     ///
     /// Returns Generation for each request in batch
     /// and the next cached batch
     #[instrument(skip_all, fields(id = &batch.id, size = &batch.size))]
-    pub async fn prefill(&mut self, batch: Batch) -> Result<(Vec<Generation>, Option<Batch>)> {
+    pub async fn embed(&mut self, batch: Batch) -> Result<Vec<Execution>> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.prefill(batch.clone())))
+            .map(|client| Box::pin(client.embed(batch.clone())))
             .collect();
-        let results: Result<Vec<(Vec<Generation>, Option<Batch>)>> =
-            join_all(futures).await.into_iter().collect();
-        merge_generations(results?)
-    }
-
-    /// Generate one token for each request in the given cached batches
-    ///
-    /// Returns Generation for each request in batches
-    /// and the next cached batch
-    #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
-    pub async fn decode(
-        &mut self,
-        batches: Vec<Batch>,
-    ) -> Result<(Vec<Generation>, Option<Batch>)> {
-        let futures: Vec<_> = self
-            .clients
-            .iter_mut()
-            .map(|client| Box::pin(client.decode(batches.clone())))
-            .collect();
-        let results: Result<Vec<(Vec<Generation>, Option<Batch>)>> =
+        let results: Result<Vec<Vec<Execution>>> =
             join_all(futures).await.into_iter().collect();
         merge_generations(results?)
     }
@@ -125,12 +90,12 @@ impl ShardedClient {
 
 /// Merge generations from the different model shards
 fn merge_generations(
-    mut results: Vec<(Vec<Generation>, Option<Batch>)>,
-) -> Result<(Vec<Generation>, Option<Batch>)> {
-    let (mut generations, next_batch) = results.pop().ok_or(ClientError::EmptyResults)?;
+    mut results: Vec<Vec<Execution>>,
+) -> Result<Vec<Execution>> {
+    let mut execs = results.pop().ok_or(ClientError::EmptyResults)?;
 
-    for (mut shard_generations, _) in results.into_iter() {
-        generations.append(&mut shard_generations);
+    for mut shard_exec in results.into_iter() {
+        execs.append(&mut shard_exec);
     }
-    Ok((generations, next_batch))
+    Ok(execs)
 }

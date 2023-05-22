@@ -1,4 +1,4 @@
-from text_generation_server.utils.tokens import (
+from embedding_server.utils.tokens import (
     StopSequenceCriteria,
     StoppingCriteria,
     FinishReason,

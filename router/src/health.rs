@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use text_generation_client::{
-    Batch, NextTokenChooserParameters, Request, ShardedClient, StoppingCriteriaParameters,
+use embedding_server_client::{
+    Batch, Request, ShardedClient,
 };
 
 // Note: Request ids and batch ids cannot collide.
@@ -34,30 +34,14 @@ impl Health {
                 id: LIVENESS_ID,
                 inputs: "liveness".to_string(),
                 truncate: 10,
-                parameters: Some(NextTokenChooserParameters {
-                    temperature: 1.0,
-                    top_k: 0,
-                    top_p: 1.0,
-                    typical_p: 1.0,
-                    do_sample: false,
-                    seed: 0,
-                    repetition_penalty: 1.0,
-                    watermark: false,
-                }),
-                stopping_parameters: Some(StoppingCriteriaParameters {
-                    max_new_tokens: 1,
-                    stop_sequences: vec![],
-                    ignore_eos_token: false,
-                }),
             };
             let batch = Batch {
                 id: BATCH_ID,
                 requests: vec![liveness_request],
                 size: 1,
-                max_tokens: 2,
             };
             // Skips the queue
-            let value = self.client.prefill(batch).await.is_ok();
+            let value = self.client.embed(batch).await.is_ok();
             // Update generation health
             self.generation_health.store(value, Ordering::SeqCst);
             value

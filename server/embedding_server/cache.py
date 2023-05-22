@@ -1,6 +1,6 @@
 from typing import Dict, Optional, TypeVar
 
-from text_generation_server.models.types import Batch
+from embedding_server.models.types import Batch
 
 B = TypeVar("B", bound=Batch)
 

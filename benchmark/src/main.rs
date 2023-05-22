@@ -4,7 +4,7 @@
 /// and: https://github.com/orhun/rust-tui-template
 use clap::Parser;
 use std::path::Path;
-use text_generation_client::ShardedClient;
+use embedding_server_client::ShardedClient;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -22,13 +22,11 @@ struct Args {
     batch_size: Option<Vec<u32>>,
     #[clap(default_value = "10", short, long, env)]
     sequence_length: u32,
-    #[clap(default_value = "8", short, long, env)]
-    decode_length: u32,
     #[clap(default_value = "10", short, long, env)]
     runs: usize,
     #[clap(default_value = "1", short, long, env)]
     warmups: usize,
-    #[clap(default_value = "/tmp/text-generation-server-0", short, long, env)]
+    #[clap(default_value = "/tmp/embedding-server-0", short, long, env)]
     master_shard_uds_path: String,
 }
 
@@ -41,7 +39,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         revision,
         batch_size,
         sequence_length,
-        decode_length,
         runs,
         warmups,
         master_shard_uds_path,
@@ -97,12 +94,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             tracing::info!("Connected");
 
             // Run app
-            text_generation_benchmark::run(
+            embedding_server_benchmark::run(
                 tokenizer_name,
                 tokenizer,
                 batch_size,
                 sequence_length,
-                decode_length,
                 runs,
                 warmups,
                 sharded_client,
