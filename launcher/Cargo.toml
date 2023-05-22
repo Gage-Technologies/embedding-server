@@ -1,6 +1,6 @@
 [package]
-name = "text-generation-launcher"
-description = "Text Generation Launcher"
+name = "embedding-server-launcher"
+description = "Embedding Server Launcher"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

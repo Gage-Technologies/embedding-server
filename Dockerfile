@@ -152,11 +152,11 @@ RUN cd server && \
     pip install ".[bnb, accelerate]" --no-cache-dir
 
 # Install benchmarker
-COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+COPY --from=builder /usr/src/target/release/embedding-server-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
 COPY --from=builder /usr/src/target/release/embedding-server-router /usr/local/bin/embedding-server-router
 # Install launcher
-COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+COPY --from=builder /usr/src/target/release/embedding-server-launcher /usr/local/bin/embedding-server-launcher
 
 # AWS Sagemaker compatbile image
 FROM base as sagemaker
@@ -169,5 +169,5 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-ENTRYPOINT ["text-generation-launcher"]
+ENTRYPOINT ["embedding-server-launcher"]
 CMD ["--json-output"]

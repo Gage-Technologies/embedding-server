@@ -684,6 +684,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedding-server-launcher"
+version = "0.7.0-dev"
+dependencies = [
+ "clap",
+ "ctrlc",
+ "float_eq",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "subprocess",
+ "tracing",
+ "tracing-subscriber",
+ "vergen",
+]
+
+[[package]]
 name = "embedding-server-router"
 version = "0.7.0-dev"
 dependencies = [
@@ -2579,22 +2595,6 @@ dependencies = [
  "redox_syscall 0.3.5",
  "rustix",
  "windows-sys 0.45.0",
-]
-
-[[package]]
-name = "text-generation-launcher"
-version = "0.7.0-dev"
-dependencies = [
- "clap",
- "ctrlc",
- "float_eq",
- "reqwest",
- "serde",
- "serde_json",
- "subprocess",
- "tracing",
- "tracing-subscriber",
- "vergen",
 ]
 
 [[package]]

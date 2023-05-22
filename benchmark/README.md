@@ -20,7 +20,7 @@ make install-benchmark
 First, start `text-generation-inference`:
 
 ```shell
-text-generation-launcher --model-id all-MiniLM-L6-v2
+embedding-server-launcher --model-id all-MiniLM-L6-v2
 ```
 
 Then run the benchmarking tool:

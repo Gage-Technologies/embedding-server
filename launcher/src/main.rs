@@ -60,8 +60,8 @@ struct Args {
     sharded: Option<bool>,
 
     /// The number of shards to use if you don't want to use all GPUs on a given machine.
-    /// You can use `CUDA_VISIBLE_DEVICE=0,1 text-generation-launcher... --num_shard 2`
-    /// and `CUDA_VISIBLE_DEVICE=2,3 text-generation-launcher... --num_shard 2` to
+    /// You can use `CUDA_VISIBLE_DEVICE=0,1 embedding-server-launcher... --num_shard 2`
+    /// and `CUDA_VISIBLE_DEVICE=2,3 embedding-server-launcher... --num_shard 2` to
     /// launch 2 copies with 2 shard each on a given machine with 4 GPUs for instance.
     #[clap(long, env)]
     num_shard: Option<usize>,
@@ -141,7 +141,7 @@ struct Args {
 
     /// The name of the socket for gRPC communication between the webserver
     /// and the shards.
-    #[clap(default_value = "/tmp/text-generation-server", long, env)]
+    #[clap(default_value = "/tmp/embedding-server", long, env)]
     shard_uds_path: String,
 
     /// The address the master shard will listen on. (setting used by torch distributed)
@@ -222,7 +222,7 @@ fn shard_manager(
 
     // Process args
     let mut shard_argv = vec![
-        "text-generation-server".to_string(),
+        "embedding-server".to_string(),
         "serve".to_string(),
         model_id,
         "--uds-path".to_string(),
@@ -327,7 +327,7 @@ fn shard_manager(
         Err(err) => {
             if let PopenError::IoError(ref err) = err {
                 if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-server not found in PATH");
+                    tracing::error!("embedding-server not found in PATH");
                     tracing::error!("Please install it with `make install-server`")
                 }
             }
@@ -499,7 +499,7 @@ fn download_convert_model(
     running: Arc<AtomicBool>,
 ) -> Result<(), LauncherError> {
     let mut download_argv = vec![
-        "text-generation-server".to_string(),
+        "embedding-server".to_string(),
         "download-weights".to_string(),
         args.model_id.to_string(),
         "--extension".to_string(),
@@ -567,7 +567,7 @@ fn download_convert_model(
         Err(err) => {
             if let PopenError::IoError(ref err) = err {
                 if err.kind() == io::ErrorKind::NotFound {
-                    tracing::error!("text-generation-server not found in PATH");
+                    tracing::error!("embedding-server not found in PATH");
                     tracing::error!("Please install it with `make install-server`")
                 }
             }

@@ -17,4 +17,4 @@ if [[ -n "${HF_MODEL_QUANTIZE}" ]]; then
   export QUANTIZE="${HF_MODEL_QUANTIZE}"
 fi
 
-text-generation-launcher --port 8080
+embedding-server-launcher --port 8080

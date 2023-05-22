@@ -1,6 +1,6 @@
 [package]
 name = "embedding-server-router"
-description = "Text Generation Webserver"
+description = "Embedding Server Webserver"
 build = "build.rs"
 version.workspace = true
 edition.workspace = true

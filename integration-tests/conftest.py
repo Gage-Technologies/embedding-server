@@ -215,7 +215,7 @@ def launcher(event_loop):
         )
 
         args = [
-            "text-generation-launcher",
+            "embedding-server-launcher",
             "--model-id",
             model_id,
             "--port",
