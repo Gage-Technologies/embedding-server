@@ -14,5 +14,4 @@
 
 __version__ = "0.3.0"
 
-from text_generation.client import Client, AsyncClient
-from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient
+from embedding_server.client import Client, AsyncClient

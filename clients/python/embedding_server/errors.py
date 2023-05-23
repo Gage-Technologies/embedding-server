@@ -7,7 +7,7 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
-class GenerationError(Exception):
+class ExecutionError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
@@ -81,8 +81,8 @@ def parse_error(status_code: int, payload: Dict[str, str]) -> Exception:
     message = payload["error"]
     if "error_type" in payload:
         error_type = payload["error_type"]
-        if error_type == "generation":
-            return GenerationError(message)
+        if error_type == "execution":
+            return ExecutionError(message)
         if error_type == "incomplete_generation":
             return IncompleteGenerationError(message)
         if error_type == "overloaded":

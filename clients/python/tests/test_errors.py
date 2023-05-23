@@ -1,6 +1,6 @@
-from text_generation.errors import (
+from embedding_server.errors import (
     parse_error,
-    GenerationError,
+    ExecutionError,
     IncompleteGenerationError,
     OverloadedError,
     ValidationError,
@@ -14,8 +14,8 @@ from text_generation.errors import (
 
 
 def test_generation_error():
-    payload = {"error_type": "generation", "error": "test"}
-    assert isinstance(parse_error(400, payload), GenerationError)
+    payload = {"error_type": "execution", "error": "test"}
+    assert isinstance(parse_error(400, payload), ExecutionError)
 
 
 def test_incomplete_generation_error():
