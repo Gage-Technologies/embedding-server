@@ -1,6 +1,8 @@
 .idea
 target
 
+client/go/.idea
+
 _playground
 
 router/tokenizer.json
