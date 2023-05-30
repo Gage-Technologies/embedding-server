@@ -70,7 +70,6 @@ impl Infer {
         }
     }
 
-    /// Add a new request to the queue and return a stream of InferStreamResponse
     #[instrument(skip(self))]
     pub(crate) async fn embed(
         &self,
@@ -126,73 +125,16 @@ impl Infer {
         }
     }
 
-    // /// Add a new request to the queue and return a InferResponse
-    // #[instrument(skip(self))]
-    // pub(crate) async fn generate(
-    //     &self,
-    //     request: EmbedRequest,
-    // ) -> Result<InferResponse, InferError> {
-    //     // Create stream and keep semaphore permit as long as generate lives
-    //     let (_permit, mut stream) = self.embed(request).await?;
-    //
-    //     // Return values
-    //     let mut result_prefill = Vec::new();
-    //     let mut result_tokens = Vec::new();
-    //     let mut result_generated_text = None;
-    //     let mut result_start = None;
-    //     let mut result_queued = None;
-    //
-    //     // Iterate on stream
-    //     while let Some(response) = stream.next().await {
-    //         match response? {
-    //             // Add prefill tokens
-    //             InferStreamResponse::Prefill(tokens) => {
-    //                 // Create Token objects
-    //                 // We do that here instead of in the Python code as Rust for loops are faster
-    //                 result_prefill = tokens
-    //                     .ids
-    //                     .into_iter()
-    //                     .zip(tokens.logprobs.into_iter())
-    //                     .zip(tokens.texts.into_iter())
-    //                     .map(|((id, logprob), text)| PrefillToken { id, text, logprob })
-    //                     .collect();
-    //             }
-    //             // Push last token
-    //             InferStreamResponse::Token(token) => result_tokens.push(token),
-    //             // Final message
-    //             // Set return values
-    //             InferStreamResponse::End {
-    //                 token,
-    //                 generated_text,
-    //                 start,
-    //                 queued,
-    //             } => {
-    //                 result_tokens.push(token);
-    //                 result_generated_text = Some(generated_text);
-    //                 result_start = Some(start);
-    //                 result_queued = Some(queued)
-    //             }
-    //         }
-    //     }
-    //
-    //     // Check that we received a `InferStreamResponse::End` message
-    //     if let (Some(generated_text), Some(queued), Some(start)) =
-    //         (result_generated_text, result_queued, result_start)
-    //     {
-    //         Ok(InferResponse {
-    //             prefill: result_prefill,
-    //             tokens: result_tokens,
-    //             generated_text,
-    //             queued,
-    //             start,
-    //         })
-    //     } else {
-    //         let err = InferError::IncompleteGeneration;
-    //         metrics::increment_counter!("tgi_request_failure", "err" => "incomplete");
-    //         tracing::error!("{err}");
-    //         Err(err)
-    //     }
-    // }
+    #[instrument(skip(self))]
+    pub(crate) async fn token_count(
+        &self,
+        request: EmbedRequest,
+    ) -> Result<TokenCountResponse, InferError> {
+        let token_count = self.validation.token_count(request.inputs).await?;
+
+        Ok(TokenCountResponse { count: token_count })
+    }
+
 }
 
 /// Batching logic
@@ -327,6 +269,11 @@ pub(crate) struct InferResponse {
     pub(crate) embedding: Embedding,
     pub(crate) queued: Instant,
     pub(crate) start: Instant,
+}
+
+#[derive(Debug)]
+pub(crate) struct TokenCountResponse {
+    pub(crate) count: usize,
 }
 
 #[derive(Debug, Error)]

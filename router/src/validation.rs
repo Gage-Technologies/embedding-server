@@ -1,3 +1,4 @@
+use flume::SendError;
 use crate::validation::ValidationError::{EmptyInput};
 /// Payload validation logic
 use crate::{EmbedRequest};
@@ -87,6 +88,34 @@ impl Validation {
             let input_length = truncate.unwrap_or(self.max_input_length);
 
             Ok((inputs, input_length))
+        }
+    }
+
+    #[instrument(skip_all)]
+    pub(crate) async fn token_count(
+        &self,
+        inputs: String,
+    ) -> Result<usize, ValidationError> {
+        // If we have a fast tokenizer
+        if let Some(sender) = &self.sender {
+            // Create response channel
+            let (response_sender, response_receiver) = oneshot::channel();
+            // Send request to the background validation task
+            // Unwrap is safe here
+            sender
+                .send(((inputs, None), response_sender, Span::current()))
+                .unwrap();
+
+            // Await on response channel
+            // Unwrap is safe here
+            let (inputs, input_length) = response_receiver.await.unwrap()?;
+
+            metrics::histogram!("tgi_request_input_length", input_length as f64);
+            Ok(input_length)
+        }
+        // Return 0 to signify that we can't perform this op
+        else {
+            Ok(0)
         }
     }
 

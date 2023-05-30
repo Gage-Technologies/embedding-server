@@ -87,6 +87,12 @@ pub(crate) struct EmbedResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct TokenCountResponse {
+    #[schema(example = "10")]
+    pub count: usize,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,

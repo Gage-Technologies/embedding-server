@@ -2,7 +2,7 @@ use crate::health::Health;
 /// HTTP Server logic
 use crate::infer::{InferError};
 use crate::{
-    CompatEmbedRequest, EmbedRequest, EmbedResponse, ErrorResponse, HubModelInfo, Infer, Info,
+    CompatEmbedRequest, EmbedRequest, EmbedResponse, TokenCountResponse, ErrorResponse, HubModelInfo, Infer, Info,
     Validation,
 };
 use axum::extract::Extension;
@@ -212,6 +212,70 @@ async fn embed(
     Ok((headers, Json(res)))
 }
 
+/// Count tokens
+#[utoipa::path(
+    post,
+    tag = "Embedding Server Inference",
+    path = "/token_count",
+    request_body = EmbedRequest,
+    responses(
+        (status = 200, description = "Token count", body = TokenCountResponse),
+        (status = 424, description = "Embedding Error", body = ErrorResponse,
+            example = json ! ({"error": "Request failed during generation"})),
+        (status = 429, description = "Model is overloaded", body = ErrorResponse,
+            example = json ! ({"error": "Model is overloaded"})),
+        (status = 422, description = "Input validation error", body = ErrorResponse,
+            example = json ! ({"error": "Input validation error"})),
+        (status = 500, description = "Incomplete generation", body = ErrorResponse,
+            example = json ! ({"error": "Incomplete generation"})),
+    )
+)]
+async fn token_count(
+    infer: Extension<Infer>,
+    req: Json<EmbedRequest>,
+) -> Result<(HeaderMap, Json<TokenCountResponse>), (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
+    let start_time = Instant::now();
+    metrics::increment_counter!("tgi_tc_request_count");
+
+    let compute_characters = req.0.inputs.chars().count();
+
+    // Inference
+    let response = infer.token_count(req.0).await?;
+
+    // Timings
+    let total_time = start_time.elapsed();
+
+    // Tracing metadata
+    span.record("total_time", format!("{total_time:?}"));
+
+    // Headers
+    let mut headers = HeaderMap::new();
+    headers.insert("x-compute-type", "gpu+optimized".parse().unwrap());
+    headers.insert(
+        "x-compute-time",
+        total_time.as_millis().to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-compute-characters",
+        compute_characters.to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-total-time",
+        total_time.as_millis().to_string().parse().unwrap(),
+    );
+
+    // Metrics
+    metrics::increment_counter!("tgi_tc_request_success");
+    metrics::histogram!("tgi_tc_request_duration", total_time.as_secs_f64());
+
+    // Send response
+    let res = TokenCountResponse {
+        count: response.count,
+    };
+    Ok((headers, Json(res)))
+}
+
 /// Prometheus metrics scrape endpoint
 #[utoipa::path(
     get,
@@ -254,6 +318,7 @@ pub async fn run(
                 CompatEmbedRequest,
                 EmbedRequest,
                 EmbedResponse,
+                TokenCountResponse,
                 ErrorResponse,
             )
         ),
@@ -345,6 +410,7 @@ pub async fn run(
         // .route("/", post(compat_generate))
         .route("/info", get(get_model_info))
         .route("/embed", post(embed))
+        .route("/token-count", post(token_count))
         // AWS Sagemaker route
         // .route("/invocations", post(compat_generate))
         // Base Health route
