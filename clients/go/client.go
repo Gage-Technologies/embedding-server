@@ -138,7 +138,7 @@ func (c *Client) TokenCount(input string) (*TokenCountResponse, error) {
 
 // Embed
 // Embed a string using the embedding server
-func (c *Client) Embed(inputs string) (*Response, error) {
+func (c *Client) Embed(inputs string) (*EmbedResponse, error) {
 	// ensure inputs is not empty
 	if inputs == "" {
 		return nil, ErrEmptyInputs
