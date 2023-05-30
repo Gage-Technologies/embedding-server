@@ -22,6 +22,8 @@ class Model(ABC):
         world_size: int = 1,
     ):
         self.model = model.eval()
+        test_emb = self.model.encode(["test"], convert_to_numpy=False, convert_to_tensor=True)
+        self.dim = int(test_emb.shape[-1])
         self.tokenizer = tokenizer
         self.dtype = dtype
         self.device = device
@@ -35,6 +37,7 @@ class Model(ABC):
             requires_padding=True,
             dtype=str(self.dtype),
             device_type=self.device.type,
+            dim=self.dim,
         )
 
     @property

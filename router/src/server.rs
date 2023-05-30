@@ -393,6 +393,7 @@ pub async fn run(
         model_dtype: shard_info.dtype,
         model_device_type: shard_info.device_type,
         model_pipeline_tag: model_info.pipeline_tag,
+        model_dim: shard_info.dim as usize,
         max_concurrent_requests,
         max_input_length,
         waiting_served_ratio,

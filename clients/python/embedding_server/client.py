@@ -6,8 +6,8 @@ from pydantic import ValidationError
 from typing import Dict, Optional, List, AsyncIterator, Iterator
 
 from embedding_server.types import (
-    Response,
-    Request,
+    EmbedResponse,
+    EmbedRequest, InfoResponse, TokenCountResponse,
 )
 from embedding_server.errors import parse_error
 
@@ -49,10 +49,28 @@ class Client:
         self.cookies = cookies
         self.timeout = timeout
 
+    def info(self) -> InfoResponse:
+        """
+        Get the model info
+
+        Returns:
+            InfoResponse: model info
+        """
+        resp = requests.get(
+            self.base_url + "/info",
+            headers=self.headers,
+            cookies=self.cookies,
+            timeout=self.timeout,
+        )
+        payload = resp.json()
+        if resp.status_code != 200:
+            raise parse_error(resp.status_code, payload)
+        return InfoResponse(**payload)
+
     def embed(
         self,
         inputs: str,
-    ) -> Response:
+    ) -> EmbedResponse:
         """
         Given a prompt, generate the following text
 
@@ -61,9 +79,9 @@ class Client:
                 Input text that will be embedded
 
         Returns:
-            Response: embedding for the text
+            EmbedResponse: embedding for the text
         """
-        request = Request(inputs=inputs)
+        request = EmbedRequest(inputs=inputs)
 
         resp = requests.post(
             self.base_url,
@@ -75,7 +93,35 @@ class Client:
         payload = resp.json()
         if resp.status_code != 200:
             raise parse_error(resp.status_code, payload)
-        return Response(**payload)
+        return EmbedResponse(**payload)
+
+    def token_count(
+        self,
+        inputs: str,
+    ) -> TokenCountResponse:
+        """
+        Given a prompt, generate the following text
+
+        Args:
+            inputs (`str`):
+                Input text that will be embedded
+
+        Returns:
+            EmbedResponse: embedding for the text
+        """
+        request = EmbedRequest(inputs=inputs)
+
+        resp = requests.post(
+            self.base_url + "/token_count",
+            json=request.dict(),
+            headers=self.headers,
+            cookies=self.cookies,
+            timeout=self.timeout,
+        )
+        payload = resp.json()
+        if resp.status_code != 200:
+            raise parse_error(resp.status_code, payload)
+        return TokenCountResponse(**payload)
 
 
 class AsyncClient:
@@ -116,10 +162,27 @@ class AsyncClient:
         self.cookies = cookies
         self.timeout = ClientTimeout(timeout * 60)
 
+    async def info(self) -> InfoResponse:
+        """
+        Get the model info
+
+        Returns:
+            InfoResponse: model info
+        """
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.get(self.base_url + "/info") as resp:
+                payload = await resp.json()
+
+                if resp.status != 200:
+                    raise parse_error(resp.status, payload)
+                return InfoResponse(**payload)
+
     async def embed(
         self,
         inputs: str,
-    ) -> Response:
+    ) -> EmbedResponse:
         """
         Given a prompt, generate the following text asynchronously
 
@@ -128,9 +191,9 @@ class AsyncClient:
                 Input text that will be embedded
 
         Returns:
-            Response: embedding for the text
+            EmbedResponse: embedding for the text
         """
-        request = Request(inputs=inputs)
+        request = EmbedRequest(inputs=inputs)
 
         async with ClientSession(
             headers=self.headers, cookies=self.cookies, timeout=self.timeout
@@ -140,4 +203,30 @@ class AsyncClient:
 
                 if resp.status != 200:
                     raise parse_error(resp.status, payload)
-                return Response(**payload)
+                return EmbedResponse(**payload)
+
+    async def token_count(
+        self,
+        inputs: str,
+    ) -> TokenCountResponse:
+        """
+        Given a prompt, generate the following text asynchronously
+
+        Args:
+            inputs (`str`):
+                Input text that will be embedded
+
+        Returns:
+            EmbedResponse: embedding for the text
+        """
+        request = EmbedRequest(inputs=inputs)
+
+        async with ClientSession(
+            headers=self.headers, cookies=self.cookies, timeout=self.timeout
+        ) as session:
+            async with session.post(self.base_url + "/token_count", json=request.dict()) as resp:
+                payload = await resp.json()
+
+                if resp.status != 200:
+                    raise parse_error(resp.status, payload)
+                return TokenCountResponse(**payload)

@@ -63,6 +63,79 @@ func (c *Client) prepareRequest(req *http.Request) *http.Request {
 	return req
 }
 
+// Info
+// Get information about the embedding server
+func (c *Client) Info() (*InfoResponse, error) {
+    // create the http request
+    httpReq, err := http.NewRequest(
+        "GET",
+        c.baseURL+"/info",
+        nil,
+    )
+
+    // prepare the request
+    httpReq = c.prepareRequest(httpReq)
+
+    // execute the request
+    res, err := c.client.Do(httpReq)
+    if err != nil {
+        return nil, fmt.Errorf("failed to execute http request: %w", err)
+    }
+
+    // parse the response
+    var response InfoResponse
+    err = json.NewDecoder(res.Body).Decode(&response)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse response: %w", err)
+    }
+
+    return &response, nil
+}
+
+// TokenCount
+// Get the number of tokens for the passed input using the
+// native tokenizer of the model running on the embedding server.
+func (c *Client) TokenCount(input string) (*TokenCountResponse, error) {
+    // ensure input is not empty
+    if input == "" {
+        return nil, ErrEmptyInputs
+    }
+
+    // create the request
+    req, err := json.Marshal(EmbedRequest{
+        Inputs: inputs,
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal request: %w", err)
+    }
+
+    // create the http request
+    httpReq, err := http.NewRequest(
+        "POST",
+        c.baseURL+"/token_count",
+		bytes.NewBuffer(req),
+    )
+
+    // prepare the request
+    httpReq = c.prepareRequest(httpReq)
+
+    // execute the request
+    res, err := c.client.Do(httpReq)
+    if err != nil {
+        return nil, fmt.Errorf("failed to execute http request: %w", err)
+    }
+
+    // parse the response
+    var response TokenCountResponse
+    err = json.NewDecoder(res.Body).Decode(&response)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse response: %w", err)
+    }
+
+    return &response, nil
+}
+
+
 // Embed
 // Embed a string using the embedding server
 func (c *Client) Embed(inputs string) (*Response, error) {
@@ -72,7 +145,7 @@ func (c *Client) Embed(inputs string) (*Response, error) {
 	}
 
 	// create the request
-	req, err := json.Marshal(Request{
+	req, err := json.Marshal(EmbedRequest{
 		Inputs: inputs,
 	})
 	if err != nil {
@@ -99,7 +172,7 @@ func (c *Client) Embed(inputs string) (*Response, error) {
 	}
 
 	// parse the response
-	var response Response
+	var response EmbedResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)

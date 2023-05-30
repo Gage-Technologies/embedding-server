@@ -5,7 +5,7 @@ from typing import Optional, List
 from embedding_server.errors import ValidationError
 
 
-class Request(BaseModel):
+class EmbedRequest(BaseModel):
     # Prompt
     inputs: str
 
@@ -16,12 +16,41 @@ class Request(BaseModel):
         return v
 
 
-# `generate` return value
-class Response(BaseModel):
+# `embed` return value
+class EmbedResponse(BaseModel):
     # embedding for the passed input
     embedding: List[float]
     # dimensions of the embedding
     dim: int
+
+
+# `token_count` return value
+class TokenCountResponse(BaseModel):
+    # number of tokens in the passed input
+    count: int
+
+
+# `info` return value
+class InfoResponse(BaseModel):
+    # Model info
+    model_id: str
+    model_sha: Optional[str]
+    model_dtype: str
+    model_device_type: str
+    model_pipeline_tag: Optional[str]
+    model_dim: int
+
+    # Router Parameters
+    max_concurrent_requests: int
+    max_input_length: int
+    waiting_served_ratio: float
+    max_batch_total_tokens: int
+    validation_workers: int
+
+    # Router Info
+    version: str
+    sha: Optional[str]
+    docker_label: Optional[str]
 
 
 # Inference API currently deployed model

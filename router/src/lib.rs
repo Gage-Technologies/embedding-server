@@ -33,6 +33,8 @@ pub struct Info {
     pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
+    #[schema(example = 512)]
+    pub model_dim: usize,
 
     /// Router Parameters
     #[schema(example = "128")]
