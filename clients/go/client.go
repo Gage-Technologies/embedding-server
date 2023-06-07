@@ -95,9 +95,9 @@ func (c *Client) Info() (*InfoResponse, error) {
 // TokenCount
 // Get the number of tokens for the passed input using the
 // native tokenizer of the model running on the embedding server.
-func (c *Client) TokenCount(input string) (*TokenCountResponse, error) {
+func (c *Client) TokenCount(inputs string) (*TokenCountResponse, error) {
     // ensure input is not empty
-    if input == "" {
+    if inputs == "" {
         return nil, ErrEmptyInputs
     }
 
