@@ -12,7 +12,7 @@ use std::path::Path;
 use std::time::Duration;
 use embedding_server_client::ShardedClient;
 use embedding_server_router::{server, HubModelInfo};
-use tokenizers::{FromPretrainedParameters, Tokenizer};
+use tokenizers::{FromPretrainedParameters, PaddingStrategy, Tokenizer, TokenizerImpl};
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -89,7 +89,7 @@ fn main() -> Result<(), std::io::Error> {
     // This will only be used to validate payloads
     let local_path = Path::new(&tokenizer_name);
     let local_model = local_path.exists() && local_path.is_dir();
-    let tokenizer = if local_model {
+    let mut tokenizer = if local_model {
         // Load local tokenizer
         Tokenizer::from_file(local_path.join("tokenizer.json")).ok()
     } else {
@@ -116,6 +116,14 @@ fn main() -> Result<(), std::io::Error> {
                     "Could not find a fast tokenizer implementation for {tokenizer_name}"
                 );
                 tracing::warn!("Rust input length validation and truncation is disabled");
+            } else {
+                // Update the strategy of the tokenizer to perform no padding
+                if let Some(tokenizer_ref) = tokenizer.as_mut() {
+                    let padding_params = tokenizer_ref.get_padding();
+                    let mut padding_params = padding_params.unwrap().clone();
+                    padding_params.strategy = PaddingStrategy::Fixed(0);
+                    tokenizer_ref.with_padding(Some(padding_params));
+                }
             }
 
             // Get Model info

@@ -233,4 +233,34 @@ mod tests {
             _ => panic!("Unexpected not input length"),
         }
     }
+
+    #[tokio::test]
+    async fn test_validation_token_count() {
+        let tokenizer = Some(get_tokenizer().await);
+        let max_input_length = 4;
+        let workers = 1;
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            max_input_length,
+        );
+
+        let val1 = validation
+            .token_count("Hello this is a long message with too many tokens".to_string());
+
+        let val2 = validation
+            .token_count("Hello this is a long message with too many tokens actually too many tokens".to_string());
+
+        match val1.await {
+            Ok(10) => (),
+            Ok(token_count) => panic!("Unexpected token count: {}", token_count),
+            Err(e) => panic!("Unexpected error: {}", e),
+        }
+
+        match val2.await {
+            Ok(14) => (),
+            Ok(token_count) => panic!("Unexpected token count: {}", token_count),
+            Err(e) => panic!("Unexpected error: {}", e),
+        }
+    }
 }

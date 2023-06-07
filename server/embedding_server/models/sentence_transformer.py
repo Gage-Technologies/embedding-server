@@ -14,6 +14,8 @@ from embedding_server.models.types import (
 )
 from embedding_server.pb import embedding_pb2
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
 tracer = trace.get_tracer(__name__)
 
 
@@ -72,7 +74,7 @@ class SentenceTransformerModel(Model):
             device = torch.device("cpu")
             dtype = torch.float32
 
-        model = SentenceTransformer(model_id, device=str(device)).to(dtype)
+        model = SentenceTransformer(model_id, device=str(device), cache_folder=HUGGINGFACE_HUB_CACHE).to(dtype)
 
         super(SentenceTransformerModel, self).__init__(
             model=model,
