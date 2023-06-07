@@ -112,7 +112,7 @@ func (c *Client) TokenCount(inputs string) (*TokenCountResponse, error) {
     // create the http request
     httpReq, err := http.NewRequest(
         "POST",
-        c.baseURL+"/token_count",
+        c.baseURL+"/token-count",
 		bytes.NewBuffer(req),
     )
 
