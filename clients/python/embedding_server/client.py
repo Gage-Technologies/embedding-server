@@ -84,7 +84,7 @@ class Client:
         request = EmbedRequest(inputs=inputs)
 
         resp = requests.post(
-            self.base_url,
+            self.base_url + "/embed",
             json=request.dict(),
             headers=self.headers,
             cookies=self.cookies,
@@ -112,7 +112,7 @@ class Client:
         request = EmbedRequest(inputs=inputs)
 
         resp = requests.post(
-            self.base_url + "/token_count",
+            self.base_url + "/token-count",
             json=request.dict(),
             headers=self.headers,
             cookies=self.cookies,

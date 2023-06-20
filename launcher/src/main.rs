@@ -81,7 +81,7 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    #[clap(default_value = "1000", long, env)]
+    #[clap(default_value = "8192", long, env)]
     max_input_length: usize,
 
     /// This represents the ratio of waiting queries vs running queries where
@@ -303,8 +303,9 @@ fn shard_manager(
     let mut p = match Popen::create(
         &shard_argv,
         PopenConfig {
+            // redirect the output to stdout and stderr
             stdout: Redirection::Pipe,
-            stderr: Redirection::Pipe,
+            stderr: Redirection::Merge,
             // Needed for the shutdown procedure
             setpgid: true,
             // NCCL env vars
@@ -335,9 +336,12 @@ fn shard_manager(
         let stdout = BufReader::new(shard_stdout);
         let _span = tracing::span!(tracing::Level::INFO, "shard-manager", rank = rank).entered();
         for line in stdout.lines() {
+            let val = &line.unwrap();
             // Parse loguru logs
-            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(&line.unwrap()) {
+            if let Ok(log) = serde_json::from_str::<PythonLogMessage>(val) {
                 log.trace();
+            } else {
+                tracing::info!("server output: {}", val);
             }
         }
     });

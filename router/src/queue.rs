@@ -155,6 +155,9 @@ impl State {
         let mut batch_entries =
             IntMap::with_capacity_and_hasher(self.entries.len(), BuildNoHashHasher::default());
 
+        let mut max_input_length = 0;
+        let mut prefill_tokens: u32 = 0;
+
         // Pop entries starting from the front of the queue
         while let Some((id, mut entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
@@ -162,6 +165,26 @@ impl State {
             if entry.response_tx.is_disconnected() {
                 metrics::increment_counter!("tgi_request_failure", "err" => "dropped");
                 continue;
+            }
+
+            // TODO: Re-enable when we dd back router-side padding
+            // if self.requires_padding {
+            //     // We pad to max input length in the Python shards
+            //     // We need to take these padding tokens into the equation
+            //     max_input_length = max_input_length.max(entry.request.input_length);
+            //     prefill_tokens = (batch_requests.len() + 1) as u32 * max_input_length
+            // } else {
+            //     prefill_tokens += entry.request.input_length;
+            // }
+
+            // TODO: Remove when we dd back router-side padding
+            prefill_tokens += entry.request.input_length;
+
+            if prefill_tokens > token_budget {
+                // Entry is over budget
+                // Add it back to the front
+                self.entries.push_front((id, entry));
+                break;
             }
 
             // Create a new span to link the batch back to this entry

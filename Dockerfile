@@ -126,12 +126,14 @@ COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib
 COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-39 /opt/conda/lib/python3.9/site-packages
 
 # Install server
+COPY server/requirements.txt server/requirements.txt
+RUN cd server && pip install -r requirements.txt
+
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements.txt && \
     pip install ".[bnb, accelerate]" --no-cache-dir
 
 # Install benchmarker

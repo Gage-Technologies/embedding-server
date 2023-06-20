@@ -24,7 +24,7 @@ use tracing_subscriber::{EnvFilter, Layer};
 struct Args {
     #[clap(default_value = "128", long, env)]
     max_concurrent_requests: usize,
-    #[clap(default_value = "1000", long, env)]
+    #[clap(default_value = "8192", long, env)]
     max_input_length: usize,
     #[clap(default_value = "32768", long, short, env)]
     max_batch_total_tokens: u32,
@@ -117,12 +117,18 @@ fn main() -> Result<(), std::io::Error> {
                 );
                 tracing::warn!("Rust input length validation and truncation is disabled");
             } else {
-                // Update the strategy of the tokenizer to perform no padding
+                // Update the strategy of the tokenizer to perform no padding or truncation
+                // this is necessary to validate the input length and return valid token counts
                 if let Some(tokenizer_ref) = tokenizer.as_mut() {
                     let padding_params = tokenizer_ref.get_padding();
                     let mut padding_params = padding_params.unwrap().clone();
                     padding_params.strategy = PaddingStrategy::Fixed(0);
                     tokenizer_ref.with_padding(Some(padding_params));
+
+                    let truncation_params = tokenizer_ref.get_truncation();
+                    let mut truncation_params = truncation_params.unwrap().clone();
+                    truncation_params.max_length = 1_000_000_000;
+                    tokenizer_ref.with_truncation(Some(truncation_params));
                 }
             }
 
