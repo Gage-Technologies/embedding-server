@@ -109,7 +109,7 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, _, input_length) = response_receiver.await.unwrap()?;
+            let (_, _, input_length) = response_receiver.await.unwrap()?;
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
             Ok(input_length)
@@ -137,7 +137,7 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, encoding, input_length) = response_receiver.await.unwrap()?;
+            let (_, encoding, input_length) = response_receiver.await.unwrap()?;
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
             Ok((encoding.get_ids().to_vec(), input_length))
@@ -203,10 +203,10 @@ fn prepare_input(
             let inputs = tokenizer
                 .decode(Vec::from(encoding.get_ids()), false)
                 .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-            (inputs, encoding, encoding.len())
+            (inputs, encoding.clone(), encoding.len())
         }
         // Nothing to do
-        _ => (inputs, encoding, encoding.len()),
+        _ => (inputs, encoding.clone(), encoding.len()),
     };
 
     Ok((inputs, encoding, input_length))

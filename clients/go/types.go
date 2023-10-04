@@ -37,3 +37,10 @@ type InfoResponse struct {
 type TokenCountResponse struct {
     Count int `json:"count"`
 }
+
+// TokenCountResponse
+// Mock of the tokenize response for the embedding server
+type TokenizeResponse struct {
+    Tokens []uint `json:"tokens"`
+    Count int `json:"count"`
+}

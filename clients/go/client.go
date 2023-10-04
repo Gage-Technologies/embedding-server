@@ -136,6 +136,50 @@ func (c *Client) TokenCount(inputs string) (*TokenCountResponse, error) {
 }
 
 
+// Tokenize
+// Tokenize the content into the integer representations using the
+// native tokenizer of the model running on the embedding server.
+func (c *Client) Tokenize(inputs string) (*TokenizeResponse, error) {
+    // ensure input is not empty
+    if inputs == "" {
+        return nil, ErrEmptyInputs
+    }
+
+    // create the request
+    req, err := json.Marshal(EmbedRequest{
+        Inputs: inputs,
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal request: %w", err)
+    }
+
+    // create the http request
+    httpReq, err := http.NewRequest(
+        "POST",
+        c.baseURL+"/tokenize",
+		bytes.NewBuffer(req),
+    )
+
+    // prepare the request
+    httpReq = c.prepareRequest(httpReq)
+
+    // execute the request
+    res, err := c.client.Do(httpReq)
+    if err != nil {
+        return nil, fmt.Errorf("failed to execute http request: %w", err)
+    }
+
+    // parse the response
+    var response TokenizeResponse
+    err = json.NewDecoder(res.Body).Decode(&response)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse response: %w", err)
+    }
+
+    return &response, nil
+}
+
+
 // Embed
 // Embed a string using the embedding server
 func (c *Client) Embed(inputs string) (*EmbedResponse, error) {
