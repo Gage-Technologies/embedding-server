@@ -4,6 +4,7 @@ use crate::validation::ValidationError::{EmptyInput};
 use crate::{EmbedRequest};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
+use tokenizers::Encoding;
 use tokenizers::TruncationDirection;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
@@ -67,7 +68,7 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, input_length) = response_receiver.await.unwrap()?;
+            let (inputs, _, input_length) = response_receiver.await.unwrap()?;
 
             // Validate InputLength
             if input_length > self.max_input_length {
@@ -108,7 +109,7 @@ impl Validation {
 
             // Await on response channel
             // Unwrap is safe here
-            let (inputs, input_length) = response_receiver.await.unwrap()?;
+            let (inputs, _, input_length) = response_receiver.await.unwrap()?;
 
             metrics::histogram!("tgi_request_input_length", input_length as f64);
             Ok(input_length)
@@ -116,6 +117,34 @@ impl Validation {
         // Return 0 to signify that we can't perform this op
         else {
             Ok(0)
+        }
+    }
+
+    #[instrument(skip_all)]
+    pub(crate) async fn tokenize(
+        &self,
+        inputs: String,
+    ) -> Result<(Vec<u32>, usize), ValidationError> {
+        // If we have a fast tokenizer
+        if let Some(sender) = &self.sender {
+            // Create response channel
+            let (response_sender, response_receiver) = oneshot::channel();
+            // Send request to the background validation task
+            // Unwrap is safe here
+            sender
+                .send(((inputs, None), response_sender, Span::current()))
+                .unwrap();
+
+            // Await on response channel
+            // Unwrap is safe here
+            let (inputs, encoding, input_length) = response_receiver.await.unwrap()?;
+
+            metrics::histogram!("tgi_request_input_length", input_length as f64);
+            Ok((encoding.get_ids().to_vec(), input_length))
+        }
+        // Return 0 to signify that we can't perform this op
+        else {
+            Ok((vec![], 0))
         }
     }
 
@@ -159,14 +188,14 @@ fn prepare_input(
     inputs: String,
     truncate: Option<usize>,
     tokenizer: &Tokenizer,
-) -> Result<(String, usize), ValidationError> {
+) -> Result<(String, Encoding, usize), ValidationError> {
     // Get the number of tokens in the input
     let mut encoding = tokenizer
         .encode(inputs.clone(), true)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
     // Optionally truncate
-    let (inputs, input_length) = match truncate {
+    let (inputs, encoding, input_length) = match truncate {
         // Truncate is some and < encoding length
         Some(truncate) if truncate < encoding.len() => {
             // truncate encoding and decode new inputs
@@ -174,18 +203,18 @@ fn prepare_input(
             let inputs = tokenizer
                 .decode(Vec::from(encoding.get_ids()), false)
                 .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
-            (inputs, encoding.len())
+            (inputs, encoding, encoding.len())
         }
         // Nothing to do
-        _ => (inputs, encoding.len()),
+        _ => (inputs, encoding, encoding.len()),
     };
 
-    Ok((inputs, input_length))
+    Ok((inputs, encoding, input_length))
 }
 
 type TokenizerRequest = (
     (String, Option<usize>),
-    oneshot::Sender<Result<(String, usize), ValidationError>>,
+    oneshot::Sender<Result<(String, Encoding, usize), ValidationError>>,
     Span,
 );
 

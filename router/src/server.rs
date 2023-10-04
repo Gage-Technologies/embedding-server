@@ -3,7 +3,7 @@ use crate::health::Health;
 use crate::infer::{InferError};
 use crate::{
     CompatEmbedRequest, EmbedRequest, EmbedResponse, TokenCountResponse, ErrorResponse, HubModelInfo, Infer, Info,
-    Validation,
+    Validation, TokenizeResponse
 };
 use axum::extract::Extension;
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -271,6 +271,71 @@ async fn token_count(
 
     // Send response
     let res = TokenCountResponse {
+        count: response.count,
+    };
+    Ok((headers, Json(res)))
+}
+
+/// Tokenize content
+#[utoipa::path(
+post,
+tag = "Embedding Server Inference",
+path = "/tokenize",
+request_body = EmbedRequest,
+responses(
+(status = 200, description = "Tokenized content", body = TokenCountResponse),
+(status = 424, description = "Embedding Error", body = ErrorResponse,
+example = json ! ({"error": "Request failed during generation"})),
+(status = 429, description = "Model is overloaded", body = ErrorResponse,
+example = json ! ({"error": "Model is overloaded"})),
+(status = 422, description = "Input validation error", body = ErrorResponse,
+example = json ! ({"error": "Input validation error"})),
+(status = 500, description = "Incomplete generation", body = ErrorResponse,
+example = json ! ({"error": "Incomplete generation"})),
+)
+)]
+async fn tokenize(
+    infer: Extension<Infer>,
+    req: Json<EmbedRequest>,
+) -> Result<(HeaderMap, Json<TokenizeResponse>), (StatusCode, Json<ErrorResponse>)> {
+    let span = tracing::Span::current();
+    let start_time = Instant::now();
+    metrics::increment_counter!("tgi_tc_request_tokenize");
+
+    let compute_characters = req.0.inputs.chars().count();
+
+    // Inference
+    let response = infer.tokenize(req.0).await?;
+
+    // Timings
+    let total_time = start_time.elapsed();
+
+    // Tracing metadata
+    span.record("total_time", format!("{total_time:?}"));
+
+    // Headers
+    let mut headers = HeaderMap::new();
+    headers.insert("x-compute-type", "gpu+optimized".parse().unwrap());
+    headers.insert(
+        "x-compute-time",
+        total_time.as_millis().to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-compute-characters",
+        compute_characters.to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-total-time",
+        total_time.as_millis().to_string().parse().unwrap(),
+    );
+
+    // Metrics
+    metrics::increment_counter!("tgi_tc_request_success");
+    metrics::histogram!("tgi_tc_request_duration", total_time.as_secs_f64());
+
+    // Send response
+    let res = TokenizeResponse {
+        tokens: response.tokens,
         count: response.count,
     };
     Ok((headers, Json(res)))

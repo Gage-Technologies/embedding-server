@@ -1,6 +1,6 @@
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
-use crate::{Entry, Queue};
+use crate::{Entry, Queue, TokenizeResponse};
 use crate::{EmbedRequest};
 use flume::SendError;
 use nohash_hasher::IntMap;
@@ -135,6 +135,18 @@ impl Infer {
         Ok(TokenCountResponse { count: token_count })
     }
 
+    #[instrument(skip(self))]
+    pub(crate) async fn tokenize(
+        &self,
+        request: EmbedRequest,
+    ) -> Result<TokenizeResponse, InferError> {
+        let (tokens, token_count) = self.validation.tokenize(request.inputs).await?;
+
+        Ok(TokenizeResponse{
+            tokens: tokens,
+            count: token_count,
+        })
+    }
 }
 
 /// Batching logic

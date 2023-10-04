@@ -95,6 +95,13 @@ pub(crate) struct TokenCountResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct TokenizeResponse {
+    #[schema(example = "10")]
+    pub tokens: Vec<u32>,
+    pub count: usize,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,
